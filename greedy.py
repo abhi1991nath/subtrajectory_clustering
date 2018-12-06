@@ -54,9 +54,31 @@ def preprocessGreedy(trajs, distPairs):
     return (strajCov, ptStraj, strajPth, trajCov)
 
 
-# Function to process a point getting covered.
-# returns a set of (pth, trajID) pairs that the point can be assigned to
 def processPoint(p, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numUnprocessedPts, queue):
+    """ Process a point picked in an interation of the greedy algorithm.
+    
+        Args:
+            p (pt): Point to be processed.
+            ptStraj ({pt : {subtraj}}) : Dict storing for each point, the set of subtrajs
+                    in distPairs containing it.
+            strajCov ({subtraj : int}) : Dict storing coverage (#points) in all subtrajs
+                    in distPairs.
+            strajPth ({subtraj: [pathlet]) : Dict storing for each subtraj in distPairs,
+                    the list of pathlets associated with it.
+            trajs ({int : traj}) : Dict mapping IDs to trajectories.
+            trajCov ({int : int}) : Dict storing the #points in each trajectory.
+            distPairs ({(pathlet, int) : [(subTraj, float)]): Dictionary mapping a
+                    pathlet-trajID pair to a list of subtraj-float pairs, where the
+                    subtraj belong to the resp. traj, and the float values are computed
+                    Frechet distances.
+            numUnprocessedPts (int) : no. of points left to be processed.
+            queue : priority queue
+            
+        Returns:
+            Set of the form {(pathlet, int}) containing pathlet-trajID pairs that the point
+            can be assigned to.
+    """
+    
     retVal = set()
     for straj in ptStraj[p]:
         trID = straj.trajID
@@ -64,13 +86,13 @@ def processPoint(p, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numU
         for i in xrange(len(strajPth[straj])):
             pth = strajPth[straj][i]
             retVal.add((pth, trID))
-    ptStraj[p] = None # this is also marking that p is processed
+    ptStraj[p] = None # this is also marking that p is processed.
     numUnprocessedPts[0] = numUnprocessedPts[0] - 1
 
-    # Check if we also have singleton sets
+    # Check if we also have singleton sets.
     if queue is not None:
         trajCov[p.trajID] -= 1
-        # Change priority of trajID to zero if its coverage is 0
+        # Change priority of trajID to zero if its coverage is 0.
         if trajCov[p.trajID] == 0:
             queue[p.trajID] = 0
     return retVal
@@ -206,18 +228,15 @@ def computeOptStrajsAdvanced(pth, distPairs, pthOptStrajs, strajCov, c1, c3, m, 
     # Update pthOptStrajs
     pthOptStrajs[pth] = ret
 
-# Function to run greedy algorithm, return pathlet assignments {pth : [subtraj]}
-# distPairs is a dictionary of form {(pathlet, trajID) : [(subtraj, dist)]}
-# strajCov : {subtraj : coverage}
-# ptStraj : {point : set(straj)}
-# strajPth : {straj : [pathlet]}
-# trajCov : {trID : #unprocessed points in traj}
+
 def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3):
     """ Run the greedy algorithm for pathlet cover.
     
     At each step, the algorithm either chooses to leave a point unassigned, or picks
     a pathlet and a set of subtrajectories assigned to the pathlet (at most one from
     each subtrajectory) depending on whichever has the highest coverage-cost ratio.
+    The points that are covered by the sets picked up in each greedy step are said to
+    be "processed".
     
     Args:
         trajs ({int : traj}): Dict mapping ID to traj objects.
@@ -225,18 +244,25 @@ def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3
                     pathlet-trajID pair to a list of subtraj-float pairs, where the
                     subtraj belong to the resp. traj, and the float values are computed
                     Frechet distances.
-        strajCov ({subtraj : int}) : Dict storing coverage (#points) in all subtrajs.
+        strajCov ({subtraj : int}) : Dict storing coverage (#points) in all subtrajs
                     in distPairs.
-        ptStraj ({pt : {subtraj}}) : Dict storing for each point, the set of subtrajs.
+        ptStraj ({pt : {subtraj}}) : Dict storing for each point, the set of subtrajs
                     in distPairs containing it.
-        strajPth ({subtraj: [pathlet]) : Dict storing for each pathlet in distPairs,
+        strajPth ({subtraj: [pathlet]) : Dict storing for each subtraj in distPairs,
                 the list of pathlets associated with it.
         trajCov ({int : int}) : Dict storing the #points in each trajectory.
         c1,c2,c3 (float): parameters of the greedy algorithm.
+        
+    Returns:
+        Pathlet assignments and unassigned points as determined by the greedy algorithm,
+        alongwith other relevant info about the pathlets picked.
     """
-    # Initialize coverage-cost ratios for each pathlet
-    # pthOptCovCost is {pth : bestCovCost}
-    # pthOptStrajs is {pth : {trajID : (subtraj, dist)}}
+    
+    # Initialize coverage-cost ratios for each pathlet.
+    # pthOptCovCost is a dict mapping a pathlet to its optimal coverage-cost ratio.
+    # pthOptStrajs is a dict of the form {pathlet : {int : (subtraj, dist)}} mapping
+    # a pathlet to the optimal assignment of subtrajectories to it, alongwith the Frechet
+    # distances. Both these dicts evolve as the greedy algorithm progresses.
     
     pthOptCovCost, pthOptStrajs = {}, {}
     
@@ -247,43 +273,37 @@ def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3
             pthOptStrajs[pth] = {}
         pthOptStrajs[pth][trID] = (None, None)
 
-    # Initialize pthOptStrajs.
+    # Compute pthOptStrajs.
     for key, value in distPairs.iteritems():
         pth = key[0]
         affectedTrajs = pthOptStrajs[pth].keys()
         computeOptStrajsAdvanced(pth, distPairs, pthOptStrajs, strajCov, c1, c3, len(ptStraj), affectedTrajs)
     
-#    for key, value in distPairs.iteritems():
-#        pth, trID, strajDists = key[0], key[1], value
-#        # compute `best' subtraj from tr for pth, returns (None, None) if all subtrajs are covered
-#        (straj, dist) = computeOptStraj(strajDists, strajCov)
-#        if pthOptStrajs.has_key(pth):
-#            pthOptStrajs[pth][trID] = (straj, dist)
-#        else:
-#            pthOptStrajs[pth] = {}
-#            pthOptStrajs[pth][trID] = (straj, dist)
-
+    # Compute pthOptCovCost from pthOptStrajs.
     for key, value in pthOptStrajs.iteritems():
         pth = key
         pthOptCovCost[pth] = computeCovCostRatio(value, c1, c3, strajCov)
         if pthOptCovCost[pth] == 0:
             print "Error"
       
-    # Initialize a max priority queue of pathlets ordered by coverage cost ratios
+    # Initialize a max priority queue of pathlets ordered by coverage cost ratios.
     queue1 = heapdict()
     for pth, ccratio in pthOptCovCost.iteritems():
-        queue1[pth] = -1.0*ccratio 
+        queue1[pth] = -1.0*ccratio # Need to negate, since heapdict is a min-heap.
     
-    # Initialize a priority queue of trajs, with coverage to cost ratio of a singleton set, i.e., |T|/c2
+    # Initialize a priority queue of trajs, with coverage to cost ratio of a singleton set, i.e., |T|/c2.
     queue2 = heapdict()
     for trID, cov in trajCov.iteritems():
         queue2[trID] = -(1.0*cov)/(1.0*c2)
-        #queue2[trID] = 1000
     
-    # Final pathlet assignments, it is of the form {pth : [subtraj]}
+    # Initial pathlet assignments, it is of the form {pathlet : [subtraj]} and stores the 
+    # list of subtraj assigned to the pathlets 
     pthAssignments = {}
-    pthStats = [] # this is of the form [(pth,ccRatio,iter,fracThickness)], where iter was when pth was picked,
-                  # and fracThickness is the proportion of points of a traj assigned to pth, summed over all trajs
+    pthStats = [] # this is of the form [(pathlet,ccRatio,iter,fracThickness)], where iter was
+                  # the iteration of the greedy algorithm when pathlet was picked,
+                  # and fracThickness is the proportion of points of a traj assigned to pth,
+                  # summed over all trajs. Note that the same pathlet can be picked multiple
+                  # times in different iterations.
 
     # Unassigned points
     unassignedPts = []
@@ -291,22 +311,18 @@ def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3
     count = 0
     numUnprocessedPts = [len(ptStraj)]
     while numUnprocessedPts[0] > 0:
-    #while True:
         print "num of points is %d" %numUnprocessedPts[0]
         x1, x2 = queue1.peekitem(), queue2.peekitem()
 
-        # set of the form {(pth, trID)} whose coverage changes after processing new points
+        # Set of the form {(pth, trID)} whose coverage changes after new points are
+        # processed in the current iteration.
         affectedPths = set()
         
-        # Pick the pathlet
+        # If the most beneficial pathlet is more beneficial than leaving a point unassigned.
         if x1[1] <= x2[1]:
             x = queue1.popitem()
             pth = x[0]
             fracThickness = 0
-            #print pth
-            #print "cc ratio is %f" %x[1]
-            #print "ccratio is %f" %pthOptCovCost[pth]
-            # Add the subtrajectories assigned to pth to final solution.
             for trID, pair in pthOptStrajs[pth].iteritems():
                 straj = pair[0]
                 if straj is None : # possible when all strajs of trID in pth's kitty have zero coverage
@@ -318,26 +334,24 @@ def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3
                     
                 fracThickness += 1.0*strajCov[straj]/len(trajs[straj.trajID].pts)
                 
-                # process the straj, and also return affected pathlets
+                # Process the straj, and also return affected pathlets, i.e., pathlets whose optimal
+                # coverage-cost ratio changes since some points that could have been assigned to it
+                # have now been processed.
                 affectedPths = affectedPths.union(processSubtraj(straj, strajCov, trajs, trajCov, ptStraj, strajPth, distPairs, numUnprocessedPts, queue2))
                 
             pthStats.append((pth,pthOptCovCost[pth],count,fracThickness))
 
-        # Pick the trajectory
+        # If more beneficial to leave a point unassigned than picking a pathlet.
         else:            
             x = queue2.popitem()
             trID = x[0]
+            # Process the unassigned point, and also return pathlets whose optimal coverage-cost ratio
+            # changes.
             affectedPths = affectedPths.union(processTraj(trID, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numUnprocessedPts, queue2, unassignedPts))
         
-        # Update coverage-cost ratio of affected pathlets
+        # Update coverage-cost ratio of affected pathlets.
         affectedPathlets = {path for (path, traID) in affectedPths}
         affectedTrajs = {traID for (path, traID) in affectedPths}
-#        for (path, traID) in affectedPths:
-#            strajDists = distPairs[(path,traID)]
-#            (stra, dist) = computeOptStraj(strajDists, strajCov)
-#            pthOptStrajs[path][traID] = (stra, dist)
-#            pthOptCovCost[path] = computeCovCostRatio(pthOptStrajs[path], c1, c3, strajCov)
-#            queue1[path] = -1.0*pthOptCovCost[path]
 
         for path in affectedPathlets:
             computeOptStrajsAdvanced(path, distPairs, pthOptStrajs, strajCov, c1, c3, len(ptStraj), affectedTrajs)
@@ -345,8 +359,7 @@ def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3
             queue1[path] = -1.0*pthOptCovCost[path]
             
         count += 1
-#        if count == 3:
-#            break
+        
     return (pthAssignments, pthStats, unassignedPts)
 
 # test above function
