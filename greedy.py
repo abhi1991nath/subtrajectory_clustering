@@ -9,21 +9,21 @@ def preprocessGreedy(trajs, distPairs):
     """ Compute pre-requisite data structures for the greedy algorithm.
 
         Args:
-            trajs ({int : traj}): Dictionary mapping ID to traj objects.
-            distPairs ({(pathlet, int) : [(subTraj, float)]): Dictionary mapping a
+            trajs ({int : traj}): dict mapping ID to traj objects.
+            distPairs ({(pathlet, int) : [(subTraj, float)]): dict mapping a
                     pathlet-trajID pair to a list of subtraj-float pairs, where the
                     subtraj belong to the resp. traj, and the float values are computed
                     Frechet distances.
             
         Returns:
             A 4-tuple (strajCov, ptStraj, strajPth, trajCov), where
-            strajCov ({subtraj : int}) : Dict storing coverage (#points) in all subtrajs.
+            strajCov ({subtraj : int}) : dict storing coverage (#points) in all subtrajs.
                     in distPairs.
-            ptStraj ({pt : {subtraj}}) : Dict storing for each point, the set of subtrajs.
+            ptStraj ({pt : {subtraj}}) : dict storing for each point, the set of subtrajs.
                     in distPairs containing it.
-            strajPth ({subtraj: [pathlet]) : Dict storing for each pathlet in distPairs,
+            strajPth ({subtraj: [pathlet]) : dict storing for each pathlet in distPairs,
                     the list of pathlets associated with it.
-            trajCov ({int : int}) : Dict storing the #points in each trajectory.
+            trajCov ({int : int}) : dict storing the #points in each trajectory.
     """
     
     strajCov, ptStraj, strajPth = {}, {}, {}
@@ -59,15 +59,15 @@ def processPoint(p, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numU
     
         Args:
             p (pt): Point to be processed.
-            ptStraj ({pt : {subtraj}}) : Dict storing for each point, the set of subtrajs
+            ptStraj ({pt : {subtraj}}) : dict storing for each point, the set of subtrajs
                     in distPairs containing it.
-            strajCov ({subtraj : int}) : Dict storing coverage (#points) in all subtrajs
+            strajCov ({subtraj : int}) : dict storing coverage (#points) in all subtrajs
                     in distPairs.
-            strajPth ({subtraj: [pathlet]) : Dict storing for each subtraj in distPairs,
+            strajPth ({subtraj: [pathlet]) : dict storing for each subtraj in distPairs,
                     the list of pathlets associated with it.
-            trajs ({int : traj}) : Dict mapping IDs to trajectories.
-            trajCov ({int : int}) : Dict storing the #points in each trajectory.
-            distPairs ({(pathlet, int) : [(subTraj, float)]): Dictionary mapping a
+            trajs ({int : traj}) : dict mapping IDs to trajectories.
+            trajCov ({int : int}) : dict storing the #points in each trajectory.
+            distPairs ({(pathlet, int) : [(subTraj, float)]): dict mapping a
                     pathlet-trajID pair to a list of subtraj-float pairs, where the
                     subtraj belong to the resp. traj, and the float values are computed
                     Frechet distances.
@@ -98,47 +98,99 @@ def processPoint(p, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numU
     return retVal
 
 
-# Function to process a subtraj getting covered.
-# Returns a set of (pth, trajID) pairs whose coverage values get changed
 def processSubtraj(straj, strajCov, trajs, trajCov, ptStraj, strajPth, distPairs, numUnprocessedPts, queue):
+    """ Process the points of a subtrajectory in an iteration of the greedy algorithm.
+    
+        Args:
+            straj (subtraj): subtrajectory whose points are to be processed.
+            strajCov ({subtraj : int}) : dict storing coverage (#points) in all subtrajs
+                    in distPairs.
+            trajs ({int : traj}) : dict mapping IDs to trajectories.
+            trajCov ({int : int}) : dict storing the #points in each trajectory.
+            ptStraj ({pt : {subtraj}}) : dict storing for each point, the set of subtrajs
+                    in distPairs containing it.           
+            strajPth ({subtraj: [pathlet]) : dict storing for each subtraj in distPairs,
+                    the list of pathlets associated with it.
+            distPairs ({(pathlet, int) : [(subTraj, float)]): dict mapping a
+                    pathlet-trajID pair to a list of subtraj-float pairs, where the
+                    subtraj belong to the resp. traj, and the float values are computed
+                    Frechet distances.
+            numUnprocessedPts (int) : no. of points left to be processed.
+            queue : priority queue
+            
+        Returns:
+            Set of the form {(pathlet, int}) containing pathlet-trajID pairs that the point
+            can be assigned to.
+    """
     trID = straj.trajID
     tr = trajs[trID]
     retVal = set()
     for i in xrange(straj.bounds[0], straj.bounds[1]+1):
         p = tr.pts[i]
-        # Check if point p is unprocessed
+        # Check if point p is unprocessed.
         if ptStraj[p] is not None:
             retVal = retVal.union(processPoint(p, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numUnprocessedPts, queue))
-            #processPoint(p, ptStraj, strajCov, strajPth, trajs, distPairs, numUnprocessedPts)
     if strajCov[straj] != 0:
-        print "Oh no!! Coverage after %d" %strajCov[straj]
+        print "Error!! Coverage should have been 0, instead of %d" %strajCov[straj]
         
     return retVal
 
 
-# Function to process a trajectory : this means the remaining unprocessed points in the trajectory
-# will be covered by singleton sets, and not assigned to any pathlets.
-# Returns a set of (pth, trajID) pairs whose coverage values get changed
 def processTraj(trID, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numUnprocessedPts, queue, unassignedPts):
+    """ Process the unprocessed points of a trajectory.
+    
+        This function is called when an interation of the greedy algorithm decides to leave the unprocessed
+        points of the trajectory unassigned.
+        
+        Args:
+            trID (int): ID of the traj whose points are to be processed.
+            ptStraj ({pt : {subtraj}}) : dict storing for each point, the set of subtrajs
+                    in distPairs containing it.
+            strajCov ({subtraj : int}) : dict storing coverage (#points) in all subtrajs
+                    in distPairs.
+            strajPth ({subtraj: [pathlet]) : dict storing for each subtraj in distPairs,
+                    the list of pathlets associated with it.
+            trajs ({int : traj}) : dict mapping IDs to trajectories.
+            trajCov ({int : int}) : dict storing the #points in each trajectory.
+            distPairs ({(pathlet, int) : [(subTraj, float)]): Dictionary mapping a
+                    pathlet-trajID pair to a list of subtraj-float pairs, where the
+                    subtraj belong to the resp. traj, and the float values are computed
+                    Frechet distances.
+            numUnprocessedPts (int) : no. of points left to be processed.
+            queue : priority queue
+                
+        Returns:
+            Set of the form {(pathlet, int}) containing pathlet-trajID pairs that the point
+            can be assigned to.
+    """
     points = trajs[trID].pts
     retVal = set()
     for i in xrange(len(points)):
         p = points[i]
-        # Check if p is unprocessed
+        # Check if p is unprocessed.
         if ptStraj[p] is not None:
-            # Add p to the list of unassigned points
+            # Add p to the list of unassigned points.
             unassignedPts.append(p)
             retVal = retVal.union(processPoint(p, ptStraj, strajCov, strajPth, trajs, trajCov, distPairs, numUnprocessedPts, queue))
             
     if trajCov[trID] != 0:
-        print "Error!! Coverage is non-zero!!"
+        print "Error!! Coverage should have been zero."
         
     return retVal
         
 
-# Function to compute total coverage cost ratio
-# trajStrajDist is {trajID : (subtraj, dist)}
 def computeCovCostRatio(trajStrajDist, c1, c3, strajCov):
+    """ Compute coverage-cost ratio for a pathlet.
+    
+        Args:
+            trajStrajDist {int : (subtraj, float)} : dict containing a subtrajectory for
+                    a trajectory ID alongwith the distance from the pathlet.
+            c1, c3 (float): parameters of the greedy algorithm.
+            strajCov ({subtraj : int}) : dict storing coverage (#points) of subtrajs.
+            
+        Returns:
+            The coverage-cost ratio of the pathlet.
+    """
     curCov, curCost = 0, c1
     for k, v in trajStrajDist.iteritems():
         straj, dist = v[0], v[1]
@@ -151,32 +203,22 @@ def computeCovCostRatio(trajStrajDist, c1, c3, strajCov):
     else:
         return (1.0*curCov)/(1.0*curCost)
 
-# Function to compute optimal subtraj of a traj for the greedy algorithm
-# Returns (straj, dist), or (None, None) if coverage of all subtrajs is 0
-# strajDists is [(subtraj, distance)]
-# This function is supposed to be interchangable. For now pick the straj with
-# max cov-cost ratio
-def computeOptStraj(strajDists, strajCov):
-    #retain only those strajs with non-zero coverage
-    trimmedList = [x for x in strajDists if strajCov[x[0]] != 0]
-    if len(trimmedList) == 0:
-        return (None, None)
-    retVal = trimmedList[0]
-    if retVal[1] == 0:
-        return retVal
-    for i in xrange(1, len(trimmedList)):
-        straj, dist = trimmedList[i][0], trimmedList[i][1]
-        if dist == 0:
-            return (straj, dist)
-        if strajCov[straj] / dist > strajCov[retVal[0]] /  retVal[1] :
-            retVal = (straj, dist)
-    return retVal
 
-# Function to compute the optimal subtraj of a traj that is more in line with the actual greedy algorithm.
-# For a guess r, computes the subtraj that maximizes the quantity (cov - c3*r*dist) and returns 
-# (subtraj, dist) if quantity > 0, else returns (None,None) .
-# strajDists is [(subtraj, distance)]
 def optStrajAdvancedHelper(strajDists, strajCov, r, c3):
+    """ Help in computing the subtraj of a trajectory with the maximum coverage-cost ratio.
+    
+        For a guess 'r' on the coverage-cost ratio, computes the subtraj s that maximizes the quantity
+        (coverage - c3*r*distance), and if it is > 0, returns the (s,distance), else returns (None, None).
+        
+        Args:
+            strajDists ([(subtraj, float)]): list of subtraj-distance pairs from a single trajectory.
+            strajCov ({subtraj : int}): dict storing coverage (#points) of subtrajs.
+            r (float): guess on coverage-cost ratio.
+            c3 : parameter of greedy algorithm.
+            
+        Returns:
+            (subtraj, float) or (None,None).
+    """
     temp, stra, dista = 0, None, None
     for i in xrange(len(strajDists)):
         straj, dist = strajDists[i][0], strajDists[i][1]
@@ -187,25 +229,39 @@ def optStrajAdvancedHelper(strajDists, strajCov, r, c3):
     
     return (stra, dista)
 
-# Function to compute subtrajectories for a pathlet with optimal coverage-cost ratio.
-# pth - pathlet, distPairs is of form {(pathlet, trajID) : [(subtraj,dist)]}.
-# pthOptStrajs is current optimal, and is of the form {pth : {trajID : (subtraj, dist)}}.
-# affectedTrajs is the list of newly covered trajectories
-# The function updates pthOptStrajs.
-# m is no. of points.
+
 def computeOptStrajsAdvanced(pth, distPairs, pthOptStrajs, strajCov, c1, c3, m, affectedTrajs):
+    """ Compute subtrajectories for a pathlet with optimal coverage-cost ratio.
+    
+        Args:
+            pth (pathlet) : pathlet of concern.
+            distPairs ({(pathlet, int) : [(subTraj, float)]): dict mapping a
+                    pathlet-trajID pair to a list of subtraj-float pairs, where the
+                    subtraj belong to the resp. traj, and the float values are computed
+                    Frechet distances.
+            pthOptStrajs ({pathlet : {int : (subtraj, float)}}): dict storing for a pathlet,
+                    the (at most one) optimal subtraj. from  each traj. along with the distance.
+                    This is updated by the function.
+            strajCov ({subtraj : int}) : dict storing coverage (#points) of subtrajs.
+            c1, c3 (float) : parameters of the greedy algorithm.
+            m (int) : total no. of points.
+            affectedTrajs [int] : list of trajIDs with newly covered points.
+            
+        Returns:
+            Nothin, but updates pthOptStrajs.
+    """
     optStrajs = pthOptStrajs[pth]
     ret, temp = {}, {}
     if c3 == 0:
-        # Just try to maximize coverage when c3 = 0
+        # Just try to maximize coverage when c3 = 0.
         for trID in affectedTrajs:
             strajDists = distPairs[(pth, trID)]
-            # Helper's result does not depend on r when c3 = 0
+            # Helper's result does not depend on r when c3 = 0.
             (straj,dist) = optStrajAdvancedHelper(strajDists, strajCov, 1, c3)
             ret[trID] = (straj, dist)
     else:
-        # r is a guess on the coverage-cost ratio
-        summation = 0 # quantity to check when to stop iterating through values of r
+        # r is a guess on the coverage-cost ratio.
+        summation = 0 # Quantity to check when to stop iterating through values of r.
         rmin = 1.0/(c1 + c3)
         r, rmax = rmin, m*rmin
         while r <= rmax:
@@ -214,18 +270,18 @@ def computeOptStrajsAdvanced(pth, distPairs, pthOptStrajs, strajCov, c1, c3, m, 
                 (straj,dist) = optStrajAdvancedHelper(strajDists, strajCov, r, c3)
                 temp[trID] = (straj, dist)
                 if straj is not None:
-                    summation += (strajCov[straj] - c3*r*dist) # summation += cov - c3*r*d
+                    summation += (strajCov[straj] - c3*r*dist) # summation += cov - c3*r*d.
                     
             if summation < c1*r:
                 break
                 
             else:
-                ret = temp # replace ret with current subtrajs
+                ret = temp # Replace ret with current subtrajs.
                 temp = {}
                 summation = 0
             r *= 2
     
-    # Update pthOptStrajs
+    # Update pthOptStrajs.
     pthOptStrajs[pth] = ret
 
 
@@ -239,18 +295,18 @@ def runGreedy(trajs, distPairs, strajCov, ptStraj, strajPth, trajCov, c1, c2, c3
     be "processed".
     
     Args:
-        trajs ({int : traj}): Dict mapping ID to traj objects.
-        distPairs ({(pathlet, int) : [(subTraj, float)]): Dictionary mapping a
+        trajs ({int : traj}): dict mapping ID to traj objects.
+        distPairs ({(pathlet, int) : [(subTraj, float)]): dict mapping a
                     pathlet-trajID pair to a list of subtraj-float pairs, where the
                     subtraj belong to the resp. traj, and the float values are computed
                     Frechet distances.
-        strajCov ({subtraj : int}) : Dict storing coverage (#points) in all subtrajs
+        strajCov ({subtraj : int}) : dict storing coverage (#points) in all subtrajs
                     in distPairs.
-        ptStraj ({pt : {subtraj}}) : Dict storing for each point, the set of subtrajs
+        ptStraj ({pt : {subtraj}}) : dict storing for each point, the set of subtrajs
                     in distPairs containing it.
-        strajPth ({subtraj: [pathlet]) : Dict storing for each subtraj in distPairs,
+        strajPth ({subtraj: [pathlet]) : dict storing for each subtraj in distPairs,
                 the list of pathlets associated with it.
-        trajCov ({int : int}) : Dict storing the #points in each trajectory.
+        trajCov ({int : int}) : dict storing the #points in each trajectory.
         c1,c2,c3 (float): parameters of the greedy algorithm.
         
     Returns:
